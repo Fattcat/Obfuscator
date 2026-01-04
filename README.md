@@ -1,0 +1,2 @@
+# Obfuscator
+Obfuscate python code
