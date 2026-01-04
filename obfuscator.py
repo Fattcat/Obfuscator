@@ -1,21 +1,41 @@
-import ast                                                                       import random                                                                    import string
-import sys                                                                       import builtins
-                                                                                 XOR_KEY = random.randint(1, 255)
+import ast
+import random
+import string
+import sys
+import builtins
+
+XOR_KEY = random.randint(1, 255)
 BUILTINS = set(dir(builtins))
-                                                                                 def rand_name(n=24):                                                                 return ''.join(random.choice(string.ascii_letters) for _ in range(n))        
-def xor_encode(s):                                                                   return [ord(c) ^ XOR_KEY for c in s]
-                                                                                 class Obfuscator(ast.NodeTransformer):
-    def __init__(self):                                                                  self.decode_fn = rand_name()
-        self.import_fn = rand_name()                                                     self.name_map = {}
-        self.protected = set()                                                           self.in_except = False                                                   
-    # ---------- helpers ----------                                                  def map_name(self, name):
-        if (                                                                                 name in BUILTINS or
+
+def rand_name(n=24):
+    return ''.join(random.choice(string.ascii_letters) for _ in range(n))
+
+def xor_encode(s):
+    return [ord(c) ^ XOR_KEY for c in s]
+
+class Obfuscator(ast.NodeTransformer):
+    def __init__(self):
+        self.decode_fn = rand_name()
+        self.import_fn = rand_name()
+        self.name_map = {}
+        self.protected = set()
+        self.in_except = False
+
+    # ---------- helpers ----------
+    def map_name(self, name):
+        if (
+            name in BUILTINS or
             name.startswith("__") or
-            name in self.protected                                                       ):
-            return name                                                          
-        if name not in self.name_map:                                                        self.name_map[name] = rand_name()
-                                                                                         return self.name_map[name]
-                                                                                     def decode_call(self, s):
+            name in self.protected
+        ):
+            return name
+
+        if name not in self.name_map:
+            self.name_map[name] = rand_name()
+
+        return self.name_map[name]
+
+    def decode_call(self, s):
         return ast.Call(
             func=ast.Name(self.decode_fn, ast.Load()),
             args=[ast.List([ast.Constant(x) for x in xor_encode(s)], ast.Load())],
