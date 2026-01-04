@@ -1,6 +1,18 @@
 # Obfuscator
 Obfuscate, deobfuscate python code
 
+<p align="center">
+  <a href="https://github.com/Fattcat/Obfuscator/stargazers">
+    <img src="https://img.shields.io/github/stars/Fattcat/Obfuscator.svg?style=social&label=Stars" />
+  </a>
+  <a href="https://github.com/MojeMeno/MojeRepo/network/members">
+    <img src="https://img.shields.io/github/forks/Fattcat/Obfuscator.svg?style=social&label=Forks" />
+  </a>
+  <a href="https://github.com/Fattcat/Obfuscator/watchers">
+    <img src="https://img.shields.io/github/watchers/Fattcat/Obfuscator.svg?style=social&label=Watchers" />
+  </a>
+</p>
+
 ## For education purposes ONLY !
 # how to use ?
 
