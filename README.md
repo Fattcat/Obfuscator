@@ -15,7 +15,7 @@ Obfuscate, deobfuscate python code
 
 <p align="center">
   <a href="https://github.com/Fattcat/Obfuscator">
-    <img src="https://img.shields.io/github/traffic/views/MojeMeno/MojeRepo?style=social&label=Views" />
+    <img src="https://img.shields.io/github/traffic/views/Fattcat/Obfuscator?style=social&label=Views" />
   </a>
 </p>
 
