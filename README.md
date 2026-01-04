@@ -13,6 +13,12 @@ Obfuscate, deobfuscate python code
   </a>
 </p>
 
+<p align="center">
+  <a href="https://github.com/Fattcat/Obfuscator">
+    <img src="https://img.shields.io/github/traffic/views/MojeMeno/MojeRepo?style=social&label=Views" />
+  </a>
+</p>
+
 ## For education purposes ONLY !
 # how to use ?
 
