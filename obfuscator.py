@@ -1,28 +1,27 @@
 import ast
+import builtins
 import random
 import string
 import sys
-import builtins
 
-XOR_KEY = random.randint(1, 255)
 BUILTINS = set(dir(builtins))
+XOR_KEY = random.randint(1, 255)
 
-def rand_name(n=24):
+def rand_name(n=32):
     return ''.join(random.choice(string.ascii_letters) for _ in range(n))
 
 def xor_encode(s):
     return [ord(c) ^ XOR_KEY for c in s]
 
+
 class Obfuscator(ast.NodeTransformer):
     def __init__(self):
+        self.map = {}
         self.decode_fn = rand_name()
-        self.import_fn = rand_name()
-        self.name_map = {}
-        self.protected = set()
-        self.in_except = False
+        self.protected = {self.decode_fn}
 
     # ---------- helpers ----------
-    def map_name(self, name):
+    def rename(self, name):
         if (
             name in BUILTINS or
             name.startswith("__") or
@@ -30,49 +29,88 @@ class Obfuscator(ast.NodeTransformer):
         ):
             return name
 
-        if name not in self.name_map:
-            self.name_map[name] = rand_name()
+        if name not in self.map:
+            self.map[name] = rand_name()
 
-        return self.name_map[name]
+        return self.map[name]
 
     def decode_call(self, s):
         return ast.Call(
             func=ast.Name(self.decode_fn, ast.Load()),
-            args=[ast.List([ast.Constant(x) for x in xor_encode(s)], ast.Load())],
+            args=[
+                ast.List(
+                    elts=[ast.Constant(x) for x in xor_encode(s)],
+                    ctx=ast.Load()
+                )
+            ],
             keywords=[]
         )
 
     # ---------- strings ----------
     def visit_Constant(self, node):
         if isinstance(node.value, str):
-            return self.decode_call(node.value)
+            return ast.copy_location(self.decode_call(node.value), node)
         return node
 
     # ---------- names ----------
     def visit_Name(self, node):
-        return ast.Name(
-            id=self.map_name(node.id),
-            ctx=node.ctx
+        return ast.copy_location(
+            ast.Name(self.rename(node.id), node.ctx),
+            node
         )
 
-    # ---------- function defs ----------
+    # ---------- attributes ----------
+    def visit_Attribute(self, node):
+        node.value = self.visit(node.value)
+        return node
+
+    # ---------- functions ----------
     def visit_FunctionDef(self, node):
-        node.name = self.map_name(node.name)
-        node.args = self.visit(node.args)
-        node.body = [self.visit(x) for x in node.body]
+        self.protected.add(node.name)
+        node.name = self.rename(node.name)
+        self.generic_visit(node)
+        return node
+
+    def visit_AsyncFunctionDef(self, node):
+        self.protected.add(node.name)
+        node.name = self.rename(node.name)
+        self.generic_visit(node)
         return node
 
     # ---------- arguments ----------
     def visit_arg(self, node):
-        node.arg = self.map_name(node.arg)
+        node.arg = self.rename(node.arg)
         return node
 
-    # ---------- EXCEPT HANDLER (CRITICAL FIX) ----------
+    # ---------- class ----------
+    def visit_ClassDef(self, node):
+        self.protected.add(node.name)
+        node.name = self.rename(node.name)
+        self.generic_visit(node)
+        return node
+
+    # ---------- imports ----------
+    def visit_Import(self, node):
+        for a in node.names:
+            if a.asname:
+                a.asname = self.rename(a.asname)
+            else:
+                self.protected.add(a.name.split(".")[0])
+        return node
+
+    def visit_ImportFrom(self, node):
+        for a in node.names:
+            if a.asname:
+                a.asname = self.rename(a.asname)
+            else:
+                self.protected.add(a.name)
+        return node
+
+    # ---------- except ----------
     def visit_ExceptHandler(self, node):
         if node.name:
             self.protected.add(node.name)
-
-        node.body = [self.visit(x) for x in node.body]
+        self.generic_visit(node)
         return node
 
     # ---------- f-strings ----------
@@ -80,7 +118,7 @@ class Obfuscator(ast.NodeTransformer):
         parts = []
 
         for v in node.values:
-            if isinstance(v, ast.Constant):
+            if isinstance(v, ast.Constant) and isinstance(v.value, str):
                 parts.append(self.decode_call(v.value))
             elif isinstance(v, ast.FormattedValue):
                 parts.append(
@@ -91,31 +129,20 @@ class Obfuscator(ast.NodeTransformer):
                     )
                 )
 
+        if not parts:
+            return ast.Constant("")
+
         expr = parts[0]
         for p in parts[1:]:
             expr = ast.BinOp(expr, ast.Add(), p)
 
         return expr
 
-    # ---------- imports ----------
-    def visit_Import(self, node):
-        out = []
-        for a in node.names:
-            name = self.map_name(a.asname or a.name)
-            out.append(
-                ast.Assign(
-                    targets=[ast.Name(name, ast.Store())],
-                    value=ast.Call(
-                        func=ast.Name(self.import_fn, ast.Load()),
-                        args=[self.decode_call(a.name)],
-                        keywords=[]
-                    )
-                )
-            )
-        return out
 
 def main(inp, outp):
-    src = open(inp, encoding="utf-8").read()
+    with open(inp, "r", encoding="utf-8") as f:
+        src = f.read()
+
     tree = ast.parse(src)
 
     obf = Obfuscator()
@@ -123,17 +150,14 @@ def main(inp, outp):
     ast.fix_missing_locations(tree)
 
     runtime = f"""
-def {obf.decode_fn}(data):
-    k = {XOR_KEY}
-    return ''.join(chr(x ^ k) for x in data)
-
-def {obf.import_fn}(name):
-    return __import__(name)
+def {obf.decode_fn}(x):
+    return ''.join(chr(i ^ {XOR_KEY}) for i in x)
 """
 
     with open(outp, "w", encoding="utf-8") as f:
         f.write(runtime)
         f.write(ast.unparse(tree))
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
